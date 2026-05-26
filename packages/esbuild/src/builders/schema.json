@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "title": "Module Federation Builder Schema",
+  "description": "Options for the Module Federation builders.",
+  "type": "object",
+  "properties": {
+    "mfConfig": {
+      "type": "string",
+      "description": "Path to the Module Federation configuration file.",
+      "default": "mf.config.ts"
+    }
+  },
+  "additionalProperties": true
+}

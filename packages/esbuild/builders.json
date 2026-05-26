@@ -1,0 +1,15 @@
+{
+  "$schema": "../../node_modules/@angular-devkit/architect/src/builders-schema.json",
+  "builders": {
+    "application": {
+      "implementation": "./dist/builders/application-builder.js",
+      "schema": "./dist/builders/schema.json",
+      "description": "Module Federation application builder (extends @angular-devkit/build-angular:application)"
+    },
+    "dev-server": {
+      "implementation": "./dist/builders/dev-server-builder.js",
+      "schema": "./dist/builders/schema.json",
+      "description": "Module Federation dev server builder (extends @angular-devkit/build-angular:dev-server)"
+    }
+  }
+}

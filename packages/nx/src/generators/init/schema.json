@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "cli": "nx",
+  "title": "Module Federation Init Generator",
+  "description": "Initializes Module Federation in an Nx workspace project.",
+  "type": "object",
+  "properties": {
+    "project": {
+      "type": "string",
+      "description": "The name of the project to add Module Federation to.",
+      "$default": {
+        "$source": "projectName"
+      }
+    }
+  },
+  "required": ["project"]
+}

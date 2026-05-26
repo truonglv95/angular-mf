@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "ng-add",
+  "title": "ng-add Options Schema",
+  "type": "object",
+  "properties": {
+    "project": {
+      "type": "string",
+      "description": "The name of the project to add Module Federation to."
+    },
+    "port": {
+      "type": "number",
+      "description": "The development server port."
+    }
+  },
+  "additionalProperties": false
+}

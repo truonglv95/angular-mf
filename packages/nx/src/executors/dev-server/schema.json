@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "cli": "nx",
+  "title": "Module Federation Dev Server Executor",
+  "description": "Serves an Angular application with Module Federation support.",
+  "type": "object",
+  "properties": {
+    "buildTarget": {
+      "type": "string",
+      "description": "The target to serve."
+    }
+  },
+  "additionalProperties": true
+}

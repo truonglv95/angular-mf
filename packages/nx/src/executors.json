@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "executors": {
+    "application": {
+      "implementation": "./dist/executors/application/executor.js",
+      "schema": "./dist/executors/application/schema.json",
+      "description": "Build an Angular application with Module Federation support."
+    },
+    "dev-server": {
+      "implementation": "./dist/executors/dev-server/executor.js",
+      "schema": "./dist/executors/dev-server/schema.json",
+      "description": "Serve an Angular application with Module Federation support."
+    }
+  }
+}

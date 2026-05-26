@@ -1,0 +1,10 @@
+{
+  "$schema": "../../node_modules/@angular-devkit/schematics/collection-schema.json",
+  "schematics": {
+    "ng-add": {
+      "description": "Add @angular-mf/esbuild to an Angular workspace",
+      "factory": "./index#ngAdd",
+      "schema": "./ng-add/schema.json"
+    }
+  }
+}

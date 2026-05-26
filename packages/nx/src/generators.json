@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "generators": {
+    "init": {
+      "factory": "./dist/generators/init/generator.js",
+      "schema": "./dist/generators/init/schema.json",
+      "description": "Initialize Module Federation in an Nx workspace.",
+      "aliases": ["ng-add"]
+    }
+  }
+}
