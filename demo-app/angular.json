@@ -90,6 +90,10 @@
           "options": {
             "mfConfig": "projects/host/mf.config.ts"
           }
+        },
+        "sync-types": {
+          "builder": "@angular-mf/nx:sync-types",
+          "options": {}
         }
       }
     },

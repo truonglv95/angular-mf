@@ -14,9 +14,11 @@
     "./package.json": "./package.json"
   },
   "executors": "executors.json",
+  "builders": "executors.json",
   "generators": "generators.json",
+  "schematics": "generators.json",
   "scripts": {
-    "build": "tsup && cp src/executors.json ./ && cp src/generators.json ./ && mkdir -p dist/executors/application dist/executors/dev-server dist/generators/init && cp src/executors/application/*.json dist/executors/application/ && cp src/executors/dev-server/*.json dist/executors/dev-server/ && cp src/generators/init/*.json dist/generators/init/"
+    "build": "tsup && cp src/executors.json ./ && cp src/generators.json ./ && mkdir -p dist/executors/application dist/executors/dev-server dist/executors/sync-types dist/generators/init && cp src/executors/application/*.json dist/executors/application/ && cp src/executors/dev-server/*.json dist/executors/dev-server/ && cp src/executors/sync-types/*.json dist/executors/sync-types/ && cp src/generators/init/*.json dist/generators/init/"
   },
   "dependencies": {
     "@angular-mf/core": "*"

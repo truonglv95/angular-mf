@@ -11,6 +11,20 @@
       "$default": {
         "$source": "projectName"
       }
+    },
+    "type": {
+      "type": "string",
+      "description": "The type of the application (host or remote).",
+      "enum": ["host", "remote"],
+      "default": "host"
+    },
+    "remotes": {
+      "type": "array",
+      "description": "List of remote applications (only applicable if type is host).",
+      "items": {
+        "type": "string"
+      },
+      "default": []
     }
   },
   "required": ["project"]

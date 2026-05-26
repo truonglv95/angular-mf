@@ -11,7 +11,7 @@ By default, Angular 17+ moved away from Webpack towards ESBuild/Vite. This broke
 This workspace is divided into 3 modular packages:
 - **`@angular-mf/core`**: The framework-agnostic runtime and builder plugin core. Handles `mf.config.ts` parsing, ESBuild/Vite plugins, and runtime container loading/version negotiation.
 - **`@angular-mf/esbuild`**: Angular CLI builders (`application` and `dev-server`) that wrap Angular's native builders with Module Federation superpowers.
-- **`@angular-mf/nx`**: Nx Executors for seamless integration into Nx Workspaces.
+- **`@angular-mf/nx`**: Nx Executors (`application`, `dev-server`, `sync-types`) and Generators (`init`) for seamless integration into Nx Workspaces.
 
 ### ⚡ Development (Vite Dev Server)
 Powered by a highly intelligent **Dual-Proxy Middleware**:
@@ -27,10 +27,12 @@ Works exactly like traditional Webpack Module Federation:
 - **Runtime Initialization**: Generates and injects `mf-shared-init.js` before Angular bootstraps. This ensures the host registers its singletons to `globalThis.__MF_SHARED__` so remotes can negotiate versions correctly.
 - **Dynamic Manifests**: Auto-generates `mf-manifest.json` in the `assets/` folder based on your configuration for dynamic remote loading.
 
-### 🧠 Advanced Runtime
+### 🧠 Advanced Runtime & Tooling
 - `loadRemoteModule()`: Failsafe dynamic remote script loading.
 - **SemVer Negotiation**: Remotes negotiate versions with the Host (e.g. `^21.0.0`). If the Host provides an incompatible version (or doesn't provide it), the Remote gracefully falls back to its own copy.
 - Supports `singleton: true` and `strictVersion: true`.
+- **Automatic Type Sharing**: Remotes automatically extract their exported TypeScript definitions during build. Hosts can run a simple `sync-types` executor to pull these types down for perfect Intellisense across micro-frontends.
+- **Generators**: Instantly scaffold new host or remote apps with `ng g @angular-mf/nx:init`.
 
 ---
 
@@ -78,8 +80,21 @@ export default withModuleFederation({
 });
 ```
 
-### 2. Update `angular.json`
-Update your project targets to use the `@angular-mf/esbuild` builders.
+### 2. Scaffold with Generators (Nx / CLI)
+You can instantly configure your project using the provided generator:
+
+```bash
+# Setup a Host application with remotes
+npx ng g @angular-mf/nx:init --project=host --type=host --remotes=remote1,remote2
+
+# Setup a Remote application
+npx ng g @angular-mf/nx:init --project=remote1 --type=remote
+```
+
+This will automatically create your `mf.config.ts`, update your builders, and inject the bootstrapping code into `main.ts`.
+
+### 3. Update `angular.json`
+If you prefer manual setup, update your project targets to use the `@angular-mf/esbuild` builders.
 
 ```json
 "architect": {
@@ -131,6 +146,22 @@ export const routes: Routes = [
   },
 ];
 ```
+
+### 5. Sync TypeScript Types
+To get autocomplete and type-safety across your micro-frontends:
+
+1. **Build the Remote**: When you build the remote, it automatically extracts types to `dist/remote/browser/types/`.
+2. **Serve the Remote**: Make sure the remote is accessible via its URL (e.g. `http://localhost:4202`).
+3. **Sync to Host**: Add the `sync-types` executor to your host's `angular.json` or `project.json`:
+
+```json
+"sync-types": {
+  "builder": "@angular-mf/nx:sync-types",
+  "options": {}
+}
+```
+
+Run `npx ng run host:sync-types`. The CLI will fetch the types from the remote and automatically update your `tsconfig.json` `paths` so you can strongly type your remote imports.
 
 ---
 

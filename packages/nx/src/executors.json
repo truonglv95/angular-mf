@@ -10,6 +10,11 @@
       "implementation": "./dist/executors/dev-server/executor.js",
       "schema": "./dist/executors/dev-server/schema.json",
       "description": "Serve an Angular application with Module Federation support."
+    },
+    "sync-types": {
+      "implementation": "./dist/executors/sync-types/executor.js",
+      "schema": "./dist/executors/sync-types/schema.json",
+      "description": "Synchronize TypeScript types from Module Federation remotes."
     }
   }
 }

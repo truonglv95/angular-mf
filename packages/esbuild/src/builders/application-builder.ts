@@ -364,11 +364,45 @@ export async function* buildWithModuleFederation(
       if (!isHost) {
         const pendingJs = getPendingRemoteEntryJs(mfPlugin);
         if (pendingJs) {
-          const { writeFileSync, mkdirSync } = await import('node:fs');
+          const { writeFileSync, mkdirSync, copyFileSync } = await import('node:fs');
           mkdirSync(outputPath, { recursive: true });
           const outFile = joinPath(outputPath, config.filename ?? 'remoteEntry.js');
           writeFileSync(outFile, pendingJs, 'utf8');
           context.logger.info(`[MF] ✅ remoteEntry.js → ${outFile}`);
+          
+          // Copy exposed TS files for type sharing
+          if (config.exposes) {
+            const typesDir = joinPath(outputPath, 'types');
+            mkdirSync(typesDir, { recursive: true });
+            
+            // Generate a simple index.d.ts mapping
+            let dtsContent = '';
+            
+            for (const [exposedName, filePath] of Object.entries(config.exposes)) {
+              // Copy the actual TS file
+              const absoluteFilePath = joinPath(context.workspaceRoot, filePath);
+              try {
+                // Determine destination name
+                const destName = exposedName.startsWith('./') ? exposedName.substring(2) : exposedName;
+                const destPath = joinPath(typesDir, destName + '.ts');
+                
+                // Ensure subdirectories exist
+                const { dirname } = await import('node:path');
+                mkdirSync(dirname(destPath), { recursive: true });
+                
+                copyFileSync(absoluteFilePath, destPath);
+                
+                // Add to index.d.ts
+                dtsContent += `export * from './${destName}';\n`;
+              } catch (e) {
+                context.logger.warn(`[MF] Could not copy exposed file ${filePath} for type sharing: ${e}`);
+              }
+            }
+            
+            // Write index.d.ts
+            writeFileSync(joinPath(typesDir, 'index.d.ts'), dtsContent, 'utf8');
+            context.logger.info(`[MF] ✅ Exported types to ${typesDir}`);
+          }
         }
       }
 

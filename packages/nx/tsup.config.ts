@@ -4,6 +4,7 @@ export default defineConfig({
   entry: [
     'src/executors/application/executor.ts',
     'src/executors/dev-server/executor.ts',
+    'src/executors/sync-types/executor.ts',
     'src/generators/init/generator.ts'
   ],
   format: ['esm'],
