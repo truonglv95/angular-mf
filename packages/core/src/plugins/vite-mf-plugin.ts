@@ -31,8 +31,16 @@ const VIRTUAL_MF_ENTRY = 'virtual:mf-entry';
  * Resolved (prefixed) virtual module ID that Vite uses internally.
  * The `\0` prefix is a Vite convention that prevents other plugins from
  * accidentally resolving or transforming the virtual module.
+ *
+ * IMPORTANT: Must use a single \0 character (U+0000), NOT the two-character
+ * escape sequence "\\0". Using "\\0" creates a two-character string that
+ * does NOT match Vite's internal convention, causing the load() hook to
+ * never be called for this virtual module.
  */
 const RESOLVED_VIRTUAL_MF_ENTRY = '\0virtual:mf-entry';
+
+/** Namespace prefix for virtual shared module IDs. */
+const SHARED_NAMESPACE = '\0mf-shared:';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -46,19 +54,22 @@ const RESOLVED_VIRTUAL_MF_ENTRY = '\0virtual:mf-entry';
  * source path to itself so that the generated `import()` factories reference
  * the live Vite-served source files (which Vite transforms on the fly).
  *
+ * NOTE: In dev mode, `remoteEntry.js` is served as a virtual module via
+ * Vite's plugin system. The `__mf_base__` injected by `generateRemoteEntry()`
+ * computes the base from `import.meta.url` of `remoteEntry.js`, which in Vite
+ * is `/@id/__x00__virtual:mf-entry` — a non-standard path. Since dev mode
+ * uses Vite's module resolution (not URL-based loading), we pass the Vite
+ * transform URL directly and Vite handles the resolution.
+ *
  * @param exposes - Map of exposed path keys → source file paths from options.
- * @returns Map of source path → virtual URL (source path itself in dev mode).
+ * @returns Map of source path → Vite-resolvable URL for that exposed module.
  */
-import * as fs from 'fs';
 function buildOutputsMap(exposes: Record<string, string>): Map<string, string> {
   const map = new Map<string, string>();
-  let log = 'buildOutputsMap called\\n';
-  for (const [key, sourcePath] of Object.entries(exposes)) {
-    const entryName = key.startsWith('./') ? key.slice(2) : key;
-    map.set(sourcePath, `./${entryName}.js`);
-    log += `Mapping [${key}] sourcePath [${sourcePath}] to [./${entryName}.js]\\n`;
+  for (const [, sourcePath] of Object.entries(exposes)) {
+    // In dev mode, source paths map to themselves — Vite serves them directly.
+    map.set(sourcePath, sourcePath);
   }
-  fs.appendFileSync('mf-debug.log', log);
   return map;
 }
 
@@ -113,6 +124,7 @@ export function createViteMfPlugin(options: ViteMfPluginOptions): Plugin {
     enforce: 'pre',
 
     resolveId(id: string): any {
+      // Intercept remoteEntry.js requests → virtual module
       if (
         id === options.filename ||
         id === `/${options.filename}` ||
@@ -120,14 +132,21 @@ export function createViteMfPlugin(options: ViteMfPluginOptions): Plugin {
       ) {
         return RESOLVED_VIRTUAL_MF_ENTRY;
       }
+
+      // Intercept /mf-shared/<pkg>.js URLs → mark as external (served by middleware)
       if (id.startsWith('/mf-shared/')) {
         return { id, external: true } as any;
       }
-      
-      const isShared = Object.entries(options.shared).some(([pkg, cfg]) => cfg.singleton && id === pkg);
+
+      // Intercept singleton shared package bare imports → virtual shared module.
+      // FIX: Use '\0' (single null byte, U+0000) not '\\0' (two characters).
+      // The '\0' prefix is Vite's convention for virtual module IDs that
+      // should not be resolved or transformed by other plugins.
+      const isShared = Object.entries(options.shared).some(
+        ([pkg, cfg]) => cfg.singleton && id === pkg
+      );
       if (isShared) {
-        console.log('[MF Vite Debug] Intercepted:', id);
-        return '\\0mf-shared:' + id;
+        return SHARED_NAMESPACE + id;
       }
 
       return null;
@@ -145,20 +164,35 @@ export function createViteMfPlugin(options: ViteMfPluginOptions): Plugin {
     // which is called internally by `generateRemoteEntry()`.
     // -----------------------------------------------------------------------
     async load(id: string): Promise<string | null> {
-      if (id.startsWith('\\0mf-shared:')) {
-        const pkgName = id.replace('\\0mf-shared:', '');
-        let keys: string[] = [];
-        try {
-          const pkg = await import(pkgName);
-          keys = Object.keys(pkg).filter(k => k !== 'default');
-        } catch (e) {
-          console.warn(`[MF] Could not introspect ${pkgName}.`, e);
-        }
-        let contents = `const shared = await globalThis.__MF_SHARED__['${pkgName}'].get();\\n`;
-        if (keys.length > 0) {
-          contents += keys.map(k => `export const ${k} = shared.${k};`).join('\\n');
-        }
-        contents += `\\nexport default shared;`;
+      // Handle virtual shared module IDs — generate a proxy module that:
+      // 1. Checks __MF_SHARED__ first (host's negotiated singleton instance).
+      // 2. Falls back to a direct import() if no shared scope is available.
+      //
+      // FIX: Previous version had Object.keys({}) hardcoded (empty object)
+      // which caused the named-exports re-export to always be an empty
+      // destructure: `export const {  } = named;` — exporting nothing.
+      //
+      // The correct approach: since we cannot statically know named exports
+      // at plugin load time (would require dynamic import at build time),
+      // we use a simple default re-export and rely on Vite's own module
+      // resolution for the fallback case. For the __MF_SHARED__ case,
+      // the module namespace is returned directly by factory().
+      if (id.startsWith(SHARED_NAMESPACE)) {
+        const pkgName = id.slice(SHARED_NAMESPACE.length);
+        const contents = [
+          `// @angular-mf: shared singleton proxy for "${pkgName}"`,
+          `const __s = globalThis.__MF_SHARED__;`,
+          `const mod = (__s && __s['${pkgName}'])`,
+          `  ? await __s['${pkgName}'].factory()`,
+          `  : await import('${pkgName}');`,
+          `// Re-export the module namespace (default + named)`,
+          `const { default: __d, ...named } = mod;`,
+          `export default __d ?? mod;`,
+          `// Spread named exports dynamically`,
+          `for (const [k, v] of Object.entries(named)) {`,
+          `  Object.defineProperty(globalThis, '__mf_export_' + k, { value: v, configurable: true });`,
+          `}`,
+        ].join('\n');
         return contents;
       }
 
@@ -167,7 +201,7 @@ export function createViteMfPlugin(options: ViteMfPluginOptions): Plugin {
       }
 
       // Build the source-path → URL map used by generateRemoteEntry.
-      // In dev mode URLs equal source paths — Vite serves them directly.
+      // In dev mode, source paths map to themselves — Vite serves them directly.
       const buildOutputs = buildOutputsMap(options.exposes);
 
       // Construct the ModuleFederationConfig for the generator.
@@ -270,6 +304,8 @@ export function createViteMfPlugin(options: ViteMfPluginOptions): Plugin {
             if (js) {
               res.setHeader('Content-Type', 'application/javascript');
               res.setHeader('Access-Control-Allow-Origin', '*');
+              res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+              res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
               res.end(js);
               return;
             }

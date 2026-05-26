@@ -27,18 +27,34 @@ import type { ModuleFederationConfig } from '../types/index.js';
  * @returns Resolved version string (always a valid semver string).
  */
 export async function resolveVersion(): Promise<string> {
-  try {
-    const pkgPath = join(process.cwd(), 'package.json');
-    const raw = await readFile(pkgPath, 'utf-8');
-    const pkg = JSON.parse(raw) as { version?: unknown };
-    if (typeof pkg.version === 'string' && pkg.version.length > 0) {
-      return pkg.version;
+  // Walk up from process.cwd() to find the nearest package.json that has
+  // a 'version' field. This handles monorepos where:
+  //   - process.cwd() is the workspace root (no version or wrong version)
+  //   - The actual project package.json lives in packages/<name>/
+  //
+  // We stop at the filesystem root to avoid infinite loops.
+  const { dirname } = await import('node:path');
+  let dir = process.cwd();
+  const root = dirname(dir); // stop one level above root guard
+
+  while (dir !== root) {
+    try {
+      const pkgPath = join(dir, 'package.json');
+      const raw = await readFile(pkgPath, 'utf-8');
+      const pkg = JSON.parse(raw) as { version?: unknown; name?: unknown };
+      if (typeof pkg.version === 'string' && pkg.version.length > 0) {
+        return pkg.version;
+      }
+    } catch {
+      // No package.json here or unreadable — keep walking up
     }
-    return '0.0.0';
-  } catch {
-    // File not found, permission error, or invalid JSON — use safe default.
-    return '0.0.0';
+    const parent = dirname(dir);
+    if (parent === dir) break; // reached filesystem root
+    dir = parent;
   }
+
+  // Final fallback
+  return '0.0.0';
 }
 
 // ---------------------------------------------------------------------------
@@ -82,6 +98,20 @@ export async function generateRemoteEntry(
   // -------------------------------------------------------------------------
   // Step 1: Build exposed module entries
   //
+  // CRITICAL FIX: Use import.meta.url-based absolute URL resolution.
+  //
+  // Problem: If chunkUrl is a relative path like "./GreetingComponent-HASH.js",
+  // the dynamic import() inside remoteEntry.js resolves it relative to the
+  // HOST page URL (e.g. http://host:4200/), NOT the remote server URL
+  // (e.g. http://remote:4202/). This causes a 404 because the chunk only
+  // exists on the remote server.
+  //
+  // Fix: Inject a `__mf_base__` variable computed from `import.meta.url` at the
+  // top of remoteEntry.js. All exposed chunk imports use this base to construct
+  // absolute URLs. `import.meta.url` of remoteEntry.js is always the remote
+  // server URL (e.g. "http://remote:4202/remoteEntry.js"), so stripping the
+  // filename gives the correct base for all sibling chunks.
+  //
   // Loop invariant: every `exposedPath` starts with './' (enforced by
   // `withModuleFederation()` / `asExposedPath()`).
   // -------------------------------------------------------------------------
@@ -91,10 +121,15 @@ export async function generateRemoteEntry(
     // Resolve the compiled chunk URL from the build outputs map.
     // Fall back to the source path itself when no mapping is found (e.g. in
     // unit tests that pass a minimal buildOutputs map).
-    const chunkUrl = buildOutputs.get(sourcePath) ?? sourcePath;
+    const chunkFilename = buildOutputs.get(sourcePath) ?? sourcePath;
 
-    // Each entry is a property in the `exposes` object of the container.
-    exposedEntries.push(`"${exposedPath}": async () => import("${chunkUrl}")`);
+    // Strip leading "./" to get just the filename (e.g. "GreetingComponent-HASH.js")
+    // The runtime __mf_base__ will provide the correct absolute origin prefix.
+    const bareFilename = chunkFilename.startsWith('./') ? chunkFilename.slice(2) : chunkFilename;
+
+    // Use new URL() to construct absolute URL from the base at runtime.
+    // This is safe in all modern browsers and Node ESM contexts.
+    exposedEntries.push(`"${exposedPath}": async () => import(new URL("${bareFilename}", __mf_base__).href)`);
   }
 
   // -------------------------------------------------------------------------
@@ -119,9 +154,12 @@ export async function generateRemoteEntry(
   // -------------------------------------------------------------------------
 
   // NOTE: The target size of remoteEntry.js is < 5 KB gzip (Req 3.7).
-  // Keep generated code minimal: no helper functions, no runtime imports —
-  // just a plain object literal + two assignment statements.
+  //
+  // __mf_base__: Compute the base URL from import.meta.url of THIS file
+  // (remoteEntry.js). This gives us "http://remote:4202/" regardless of where
+  // the host page is served from. All exposed chunk imports use this base.
   const remoteEntry = `
+const __mf_base__ = new URL(".", import.meta.url).href;
 const __mf_container__ = {
   name: "${config.name}",
   version: "${version}",

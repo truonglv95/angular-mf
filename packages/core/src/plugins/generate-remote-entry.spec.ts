@@ -13,11 +13,20 @@ import type { ModuleFederationConfig } from '../types/index.js';
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Returns true when the given string parses as valid JavaScript. */
-function isValidJavaScript(source: string): boolean {
+/** Returns true when the given string parses as valid JavaScript ES module. */
+async function isValidJavaScript(source: string): Promise<boolean> {
   try {
-    new Function(source);
-    return true;
+    // Use esbuild to parse/transform the source as an ES module.
+    // 'new Function(source)' only accepts script context and rejects
+    // import.meta.url and other module-only syntax — so we use esbuild
+    // which correctly validates ES module (sourceType: module) syntax.
+    const { transform } = await import('esbuild');
+    const result = await transform(source, {
+      loader: 'js',
+      format: 'esm',
+      target: 'es2022',
+    });
+    return result.code.length > 0;
   } catch {
     return false;
   }
@@ -75,7 +84,7 @@ describe('generateRemoteEntry()', () => {
 
     const output = await generateRemoteEntry(config, buildOutputs);
 
-    expect(isValidJavaScript(output)).toBe(true);
+    expect(await isValidJavaScript(output)).toBe(true);
   });
 
   it('registers the container at globalThis.__MF_CONTAINERS__[name] (Req 3.1, 8.1)', async () => {
@@ -143,9 +152,10 @@ describe('generateRemoteEntry()', () => {
 
     const output = await generateRemoteEntry(config, buildOutputs);
 
-    expect(output).toContain('import("./chunk-abc123.js")');
-    // source path should NOT appear in the import
-    expect(output).not.toContain('import("./src/entry.ts")');
+    // New format: import(new URL("chunk-abc123.js", __mf_base__).href)
+    expect(output).toContain('import(new URL("chunk-abc123.js", __mf_base__).href)');
+    // source path should NOT appear in the import path
+    expect(output).not.toContain('import(new URL("src/entry.ts", __mf_base__).href)');
   });
 
   it('falls back to source path when buildOutputs has no entry for it', async () => {
@@ -157,8 +167,8 @@ describe('generateRemoteEntry()', () => {
 
     const output = await generateRemoteEntry(config, emptyOutputs);
 
-    // Fallback: use the source path itself
-    expect(output).toContain('import("./src/entry.ts")');
+    // Fallback: use the source path itself (stripped of leading './')
+    expect(output).toContain('import(new URL("src/entry.ts", __mf_base__).href)');
   });
 
   it('includes shared dependency entries from processSharedDependencies (Req 3.5, 8.4)', async () => {
@@ -189,7 +199,7 @@ describe('generateRemoteEntry()', () => {
     const output = await generateRemoteEntry(config, buildOutputs);
 
     expect(output).toContain('shared: {  }');
-    expect(isValidJavaScript(output)).toBe(true);
+    expect(await isValidJavaScript(output)).toBe(true);
   });
 
   it('handles undefined shared by treating it as empty (Req 3.5)', async () => {
@@ -202,7 +212,7 @@ describe('generateRemoteEntry()', () => {
 
     const output = await generateRemoteEntry(config, buildOutputs);
 
-    expect(isValidJavaScript(output)).toBe(true);
+    expect(await isValidJavaScript(output)).toBe(true);
     expect(output).toContain('shared: {  }');
   });
 
@@ -219,7 +229,7 @@ describe('generateRemoteEntry()', () => {
     const output = await generateRemoteEntry(config, buildOutputs);
 
     expect(output).toContain('"rxjs"');
-    expect(isValidJavaScript(output)).toBe(true);
+    expect(await isValidJavaScript(output)).toBe(true);
   });
 
   it('produces valid JS that can be eval-executed to register the container', async () => {
@@ -233,11 +243,26 @@ describe('generateRemoteEntry()', () => {
     const output = await generateRemoteEntry(config, buildOutputs);
 
     // Execute the generated code in a sandboxed scope.
-    // We must stub dynamic imports since they won't resolve in a unit test.
-    const stubbedOutput = output.replace(
-      /async \(\) => import\("[^"]+"\)/g,
-      'async () => Promise.resolve({})',
-    );
+    // We must stub:
+    //   1. Dynamic imports since they won't resolve in a unit test.
+    //   2. import.meta.url — not available in new Function() (script) context.
+    //      Replace the __mf_base__ line with a hardcoded string instead.
+    let stubbedOutput = output
+      // Stub: replace `new URL(".", import.meta.url).href` base computation
+      .replace(
+        /const __mf_base__ = new URL\("\."\s*,\s*import\.meta\.url\)\.href;/,
+        'const __mf_base__ = "http://localhost:4202/";',
+      )
+      // Stub: replace dynamic import() calls that use __mf_base__
+      .replace(
+        /async \(\) => import\(new URL\("[^"]+"\s*,\s*__mf_base__\)\.href\)/g,
+        'async () => Promise.resolve({})',
+      )
+      // Stub: replace any remaining dynamic import() calls
+      .replace(
+        /async \(\) => import\("[^"]+"\)/g,
+        'async () => Promise.resolve({})',
+      );
 
     const globalContext: {
       __MF_CONTAINERS__?: Record<string, unknown>;
@@ -349,7 +374,7 @@ describe('generateRemoteEntry() — Property 6: RemoteEntry Valid JavaScript Out
         const buildOutputs = buildOutputsFromConfig(config);
         const output = await generateRemoteEntry(config as ModuleFederationConfig, buildOutputs);
 
-        expect(isValidJavaScript(output)).toBe(true);
+        expect(await isValidJavaScript(output)).toBe(true);
       }),
       { numRuns: 100 },
     );

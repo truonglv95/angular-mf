@@ -145,7 +145,10 @@
             "packageName": "@angular-mf/nx",
             "packageVersion": "0.1.0",
             "packageExports": {
-              "./package.json": "./package.json"
+              ".": "./dist/index.js",
+              "./package.json": "./package.json",
+              "./generators.json": "./generators.json",
+              "./executors.json": "./executors.json"
             },
             "isInPackageManagerWorkspaces": true
           }
@@ -11586,6 +11589,16 @@
       },
       {
         "source": "@angular-mf/esbuild",
+        "target": "npm:@babel/core",
+        "type": "static"
+      },
+      {
+        "source": "@angular-mf/esbuild",
+        "target": "npm:@angular/compiler-cli",
+        "type": "static"
+      },
+      {
+        "source": "@angular-mf/esbuild",
         "target": "npm:rxjs",
         "type": "static"
       },
@@ -11610,6 +11623,11 @@
         "source": "@angular-mf/core",
         "target": "npm:esbuild",
         "type": "static"
+      },
+      {
+        "source": "@angular-mf/core",
+        "target": "npm:esbuild",
+        "type": "dynamic"
       },
       {
         "source": "@angular-mf/core",
@@ -11690,6 +11708,11 @@
       }
     ],
     "demo-app": [
+      {
+        "source": "demo-app",
+        "target": "@angular-mf/nx",
+        "type": "static"
+      },
       {
         "source": "demo-app",
         "target": "npm:@angular/build",
@@ -27675,5 +27698,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1779782023474
+  "computedAt": 1779826851429
 }

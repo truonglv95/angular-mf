@@ -177,17 +177,45 @@ export async function loadRemoteModule<T = unknown>(
     // ── Step 7: Negotiate shared dependencies ───────────────────────────────
     // Requirement 6.2 — negotiate ALL shared deps before instantiating modules.
     //
+    // FIX: Previously the negotiation result was discarded. Now we:
+    //   1. Use the result to determine which factory wins (host vs remote).
+    //   2. Update globalThis.__MF_SHARED__ so that:
+    //      a) Subsequent bare imports (e.g. import('@angular/core')) inside
+    //         remote chunks resolve via the winning factory.
+    //      b) Later remotes loaded in the same session reuse the already-
+    //         negotiated instance instead of creating a new one.
+    //
+    // This is the equivalent of Webpack MF's container.init(sharedScope).
+    //
     // Loop invariant: every package processed in a prior iteration has been
     // fully negotiated and registered in the host scope before the next
     // iteration begins.
+    globalThis.__MF_SHARED__ = globalThis.__MF_SHARED__ ?? {};
+
     for (const [pkgName, sharedDep] of Object.entries(
       registeredContainer.shared,
     )) {
-      await negotiateSharedDependency(
+      const negotiation = await negotiateSharedDependency(
         pkgName,
         String(sharedDep.version),
         sharedDep,
       );
+
+      // Register the winning factory back into __MF_SHARED__ so that:
+      //   • The remote's bare imports resolve to the correct instance.
+      //   • Later remotes see this entry and reuse the same instance.
+      //
+      // Only update if:
+      //   - Host didn't have this dep (resolved: 'remote') — register remote's factory.
+      //   - Non-singleton incompatible (resolved: 'new-instance') — remote loads its own.
+      //   - Host already had it (resolved: 'host') — __MF_SHARED__ already correct, skip.
+      if (negotiation.resolved === 'remote' || negotiation.resolved === 'new-instance') {
+        globalThis.__MF_SHARED__[pkgName] = {
+          version: negotiation.providedVersion,
+          singleton: negotiation.singleton,
+          factory: negotiation.factory,
+        };
+      }
     }
 
     // Cache the fully-initialised container (Req 6.3).
@@ -209,7 +237,11 @@ export async function loadRemoteModule<T = unknown>(
   // ── Step 9: Call and return the factory ──────────────────────────────────
   // Requirement 6.1, 6.4 — return the module; repeated calls return the same
   // reference because the container is cached and the factory is idempotent.
-  return moduleFactory() as Promise<T>;
+  //
+  // Wrap in Promise.resolve().then() so that any synchronous throw from the
+  // factory (before its first await) is converted to a rejected Promise rather
+  // than propagating as an uncaught synchronous exception to the caller.
+  return Promise.resolve().then(() => moduleFactory()) as Promise<T>;
 }
 
 // ---------------------------------------------------------------------------

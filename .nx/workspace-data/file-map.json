@@ -40,7 +40,7 @@
         },
         {
           "file": "packages/core/src/config/with-module-federation.ts",
-          "hash": "3282850741291836183"
+          "hash": "5693238791899339340"
         },
         {
           "file": "packages/core/src/errors.ts",
@@ -56,22 +56,26 @@
         },
         {
           "file": "packages/core/src/plugins/esbuild-mf-plugin.ts",
-          "hash": "874925306074358807",
+          "hash": "15893072612310306323",
           "deps": [
             "npm:esbuild"
           ]
         },
         {
           "file": "packages/core/src/plugins/generate-remote-entry.spec.ts",
-          "hash": "12998169002160081560",
+          "hash": "4544413391205948726",
           "deps": [
             "npm:vitest",
-            "npm:fast-check"
+            "npm:fast-check",
+            [
+              "npm:esbuild",
+              "dynamic"
+            ]
           ]
         },
         {
           "file": "packages/core/src/plugins/generate-remote-entry.ts",
-          "hash": "1427809448481322714"
+          "hash": "12035725313412752317"
         },
         {
           "file": "packages/core/src/plugins/index.ts",
@@ -97,7 +101,7 @@
         },
         {
           "file": "packages/core/src/plugins/vite-mf-plugin.ts",
-          "hash": "4509763421459397169",
+          "hash": "4625028852131172370",
           "deps": [
             "npm:vite"
           ]
@@ -140,7 +144,7 @@
         },
         {
           "file": "packages/core/src/runtime/load-remote-module.ts",
-          "hash": "5694763953374655199"
+          "hash": "4443664979951367253"
         },
         {
           "file": "packages/core/src/runtime/negotiate-shared-dependency.spec.ts",
@@ -165,7 +169,7 @@
         },
         {
           "file": "packages/core/src/types/index.ts",
-          "hash": "10245084422587160283"
+          "hash": "15042517423783095288"
         },
         {
           "file": "packages/core/tsconfig.json",
@@ -214,7 +218,7 @@
         },
         {
           "file": "demo-app/angular.json",
-          "hash": "16247320785510380275"
+          "hash": "17650874673921983764"
         },
         {
           "file": "demo-app/package-lock.json",
@@ -222,8 +226,9 @@
         },
         {
           "file": "demo-app/package.json",
-          "hash": "4918959574373556032",
+          "hash": "3839432669297302859",
           "deps": [
+            "@angular-mf/nx",
             "npm:@angular/build",
             "npm:@angular/cli",
             "npm:@angular/compiler",
@@ -242,8 +247,66 @@
           ]
         },
         {
+          "file": "demo-app/projects/dummy-app/public/favicon.ico",
+          "hash": "3988961587069885523"
+        },
+        {
+          "file": "demo-app/projects/dummy-app/src/app/app.config.ts",
+          "hash": "7632012812733097212",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/router"
+          ]
+        },
+        {
+          "file": "demo-app/projects/dummy-app/src/app/app.css",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "demo-app/projects/dummy-app/src/app/app.html",
+          "hash": "16414979397150781938"
+        },
+        {
+          "file": "demo-app/projects/dummy-app/src/app/app.routes.ts",
+          "hash": "12397496131277534773",
+          "deps": [
+            "npm:@angular/router"
+          ]
+        },
+        {
+          "file": "demo-app/projects/dummy-app/src/app/app.ts",
+          "hash": "15934111146163240028",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/router"
+          ]
+        },
+        {
+          "file": "demo-app/projects/dummy-app/src/index.html",
+          "hash": "10536632880248712558"
+        },
+        {
+          "file": "demo-app/projects/dummy-app/src/main.ts",
+          "hash": "3314327030169821486",
+          "deps": [
+            "npm:@angular/platform-browser"
+          ]
+        },
+        {
+          "file": "demo-app/projects/dummy-app/src/styles.css",
+          "hash": "5195668842064076916"
+        },
+        {
+          "file": "demo-app/projects/dummy-app/tsconfig.app.json",
+          "hash": "4392164896217937559"
+        },
+        {
+          "file": "demo-app/projects/dummy-app/tsconfig.spec.json",
+          "hash": "10777994083665899510"
+        },
+        {
           "file": "demo-app/projects/host/mf.config.ts",
-          "hash": "15088582725356642815",
+          "hash": "13153629912995896403",
           "deps": [
             "@angular-mf/core"
           ]
@@ -310,7 +373,7 @@
         },
         {
           "file": "demo-app/projects/remote/mf.config.ts",
-          "hash": "15400814940077559376",
+          "hash": "2179894863547780461",
           "deps": [
             "@angular-mf/core"
           ]
@@ -403,108 +466,7 @@
         },
         {
           "file": "demo-app/tsconfig.json",
-          "hash": "14584094688671494738"
-        }
-      ],
-      "@angular-mf/nx": [
-        {
-          "file": "packages/nx/executors.json",
-          "hash": "15152130348741537783"
-        },
-        {
-          "file": "packages/nx/generators.json",
-          "hash": "17031978993285513027"
-        },
-        {
-          "file": "packages/nx/package.json",
-          "hash": "3873663014078431432",
-          "deps": [
-            "npm:@nx/angular",
-            "npm:@nx/devkit",
-            "npm:@angular/core",
-            "npm:esbuild",
-            "npm:vite",
-            "@angular-mf/core"
-          ]
-        },
-        {
-          "file": "packages/nx/src/executors.json",
-          "hash": "15152130348741537783"
-        },
-        {
-          "file": "packages/nx/src/executors/application/executor.ts",
-          "hash": "7067117752862848907",
-          "deps": [
-            "npm:@nx/devkit",
-            "npm:@angular-devkit/build-angular",
-            "@angular-mf/core",
-            [
-              "npm:jiti",
-              "dynamic"
-            ]
-          ]
-        },
-        {
-          "file": "packages/nx/src/executors/application/schema.json",
-          "hash": "1605236483265117034"
-        },
-        {
-          "file": "packages/nx/src/executors/dev-server/executor.ts",
-          "hash": "10533646736127430255",
-          "deps": [
-            "npm:@nx/devkit",
-            "npm:@angular-devkit/build-angular",
-            "@angular-mf/core",
-            [
-              "npm:jiti",
-              "dynamic"
-            ]
-          ]
-        },
-        {
-          "file": "packages/nx/src/executors/dev-server/schema.json",
-          "hash": "14791201930026982562"
-        },
-        {
-          "file": "packages/nx/src/executors/sync-types/executor.ts",
-          "hash": "3875490653104208747",
-          "deps": [
-            "npm:@nx/devkit",
-            [
-              "npm:esbuild",
-              "dynamic"
-            ]
-          ]
-        },
-        {
-          "file": "packages/nx/src/executors/sync-types/schema.json",
-          "hash": "10971291433225593650"
-        },
-        {
-          "file": "packages/nx/src/generators.json",
-          "hash": "17031978993285513027"
-        },
-        {
-          "file": "packages/nx/src/generators/init/generator.ts",
-          "hash": "1108421544505826446",
-          "deps": [
-            "npm:@nx/devkit"
-          ]
-        },
-        {
-          "file": "packages/nx/src/generators/init/schema.json",
-          "hash": "7500871216180506672"
-        },
-        {
-          "file": "packages/nx/tsconfig.json",
-          "hash": "15092671408272711320"
-        },
-        {
-          "file": "packages/nx/tsup.config.ts",
-          "hash": "11875658339671812996",
-          "deps": [
-            "npm:tsup"
-          ]
+          "hash": "7927108694715814485"
         }
       ],
       "@angular-mf/esbuild": [
@@ -529,11 +491,19 @@
           ]
         },
         {
-          "file": "packages/esbuild/src/builders/application-builder.ts",
-          "hash": "14239635616062442054",
+          "file": "packages/esbuild/src/builders/angular-linker-plugin.ts",
+          "hash": "11726203927777429035",
           "deps": [
-            "@angular-mf/core",
+            "npm:@babel/core",
+            "npm:@angular/compiler-cli"
+          ]
+        },
+        {
+          "file": "packages/esbuild/src/builders/application-builder.ts",
+          "hash": "10955217286048673936",
+          "deps": [
             "npm:@angular-devkit/architect",
+            "@angular-mf/core",
             [
               "npm:esbuild",
               "dynamic"
@@ -546,7 +516,7 @@
         },
         {
           "file": "packages/esbuild/src/builders/dev-server-builder.ts",
-          "hash": "9975552637364614843",
+          "hash": "16399998119634271761",
           "deps": [
             "npm:@angular-devkit/architect",
             "@angular-mf/core",
@@ -598,7 +568,108 @@
         },
         {
           "file": "packages/esbuild/tsup.config.ts",
-          "hash": "11045748349649484202",
+          "hash": "5386224169535459884",
+          "deps": [
+            "npm:tsup"
+          ]
+        }
+      ],
+      "@angular-mf/nx": [
+        {
+          "file": "packages/nx/executors.json",
+          "hash": "15152130348741537783"
+        },
+        {
+          "file": "packages/nx/generators.json",
+          "hash": "17031978993285513027"
+        },
+        {
+          "file": "packages/nx/package.json",
+          "hash": "2512740973175471809",
+          "deps": [
+            "npm:@nx/angular",
+            "npm:@nx/devkit",
+            "npm:@angular/core",
+            "npm:esbuild",
+            "npm:vite",
+            "@angular-mf/core"
+          ]
+        },
+        {
+          "file": "packages/nx/src/executors.json",
+          "hash": "15152130348741537783"
+        },
+        {
+          "file": "packages/nx/src/executors/application/executor.ts",
+          "hash": "7067117752862848907",
+          "deps": [
+            "npm:@nx/devkit",
+            "npm:@angular-devkit/build-angular",
+            "@angular-mf/core",
+            [
+              "npm:jiti",
+              "dynamic"
+            ]
+          ]
+        },
+        {
+          "file": "packages/nx/src/executors/application/schema.json",
+          "hash": "1605236483265117034"
+        },
+        {
+          "file": "packages/nx/src/executors/dev-server/executor.ts",
+          "hash": "10533646736127430255",
+          "deps": [
+            "npm:@nx/devkit",
+            "npm:@angular-devkit/build-angular",
+            "@angular-mf/core",
+            [
+              "npm:jiti",
+              "dynamic"
+            ]
+          ]
+        },
+        {
+          "file": "packages/nx/src/executors/dev-server/schema.json",
+          "hash": "14791201930026982562"
+        },
+        {
+          "file": "packages/nx/src/executors/sync-types/executor.ts",
+          "hash": "10688209271790022746",
+          "deps": [
+            "npm:@nx/devkit",
+            [
+              "npm:esbuild",
+              "dynamic"
+            ]
+          ]
+        },
+        {
+          "file": "packages/nx/src/executors/sync-types/schema.json",
+          "hash": "10971291433225593650"
+        },
+        {
+          "file": "packages/nx/src/generators.json",
+          "hash": "17031978993285513027"
+        },
+        {
+          "file": "packages/nx/src/generators/init/generator.ts",
+          "hash": "6847013226627410333",
+          "deps": [
+            "npm:@nx/devkit"
+          ]
+        },
+        {
+          "file": "packages/nx/src/generators/init/schema.json",
+          "hash": "7500871216180506672"
+        },
+        {
+          "file": "packages/nx/tsconfig.json",
+          "hash": "15092671408272711320"
+        },
+        {
+          "file": "packages/nx/tsup.config.ts",
+          "hash": "11875658339671812996",
           "deps": [
             "npm:tsup"
           ]
@@ -612,7 +683,7 @@
       },
       {
         "file": "README.md",
-        "hash": "1895545466484321542"
+        "hash": "4171564872653185065"
       },
       {
         "file": "angular-mf-esbuild-0.1.0.tgz",
@@ -620,7 +691,7 @@
       },
       {
         "file": "package-lock.json",
-        "hash": "18351986039805139001"
+        "hash": "17252841420152122233"
       },
       {
         "file": "package.json",

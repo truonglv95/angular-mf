@@ -114,16 +114,25 @@ export function createEsbuildMfPlugin(options: EsbuildMfPluginOptions): Plugin {
           // The application-builder then builds each dep into dist/shared/ and
           // injects a <script type="importmap"> into index.html so the browser
           // can resolve these bare imports.
+          //
+          // De-duplicate: filter out packages already listed in existing externals
+          // to prevent a package appearing twice in the array.
+          const existingExternals = new Set(build.initialOptions.external ?? []);
+          const newExternals = singletonExternals.filter(e => !existingExternals.has(e));
           build.initialOptions.external = [
             ...(build.initialOptions.external ?? []),
-            ...singletonExternals,
+            ...newExternals,
           ];
         } else {
           // ── DEV SERVER ───────────────────────────────────────────────────
           // Rewrite shared imports to /mf-shared/<pkg>.js so our Vite
           // middleware can intercept and serve them on-the-fly.
+          // Escape regex special characters in package names.
+          // Note: '-' and '.' are special in regex; '@' and '/' are not but we
+          // escape all non-word chars for safety.
+          const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           const sharedRegex = new RegExp(
-            `^(${singletonExternals.map(e => e.split('/').join('\\/') ).join('|')})$`
+            `^(${singletonExternals.map(escapeRegex).join('|')})$`
           );
           build.onResolve({ filter: sharedRegex }, args => {
             if (args.importer.includes('mf-entry')) return null;
@@ -190,9 +199,6 @@ export function createEsbuildMfPlugin(options: EsbuildMfPluginOptions): Plugin {
             console.warn('[MF] metafile not available — remoteEntry.js cannot be generated.');
             return;
           }
-
-
-
           const buildOutputs = new Map<string, string>();
 
           for (const [outputPath, outputInfo] of Object.entries(metafile.outputs)) {
@@ -216,8 +222,7 @@ export function createEsbuildMfPlugin(options: EsbuildMfPluginOptions): Plugin {
           }
 
           if (buildOutputs.size === 0) {
-            console.warn('[MF] Could not match any exposed modules in metafile. Falling back to unhashed paths.');
-            // Fallback: use entryName-based paths (no hash)
+            // Fallback: use entryName-based paths (no content hash)
             for (const [key, sourcePath] of Object.entries(options.exposes)) {
               const entryName = key.startsWith('./') ? key.slice(2) : key;
               buildOutputs.set(sourcePath, `./${entryName}.js`);
@@ -230,7 +235,6 @@ export function createEsbuildMfPlugin(options: EsbuildMfPluginOptions): Plugin {
           // Store in WeakMap — application-builder.ts reads this AFTER Angular
           // copies build artifacts to dist/ (esbuild onEnd fires before that).
           pendingEntryMap.set(plugin, js);
-          console.log('[MF] remoteEntry.js generated, pending write after Angular output copy.');
         });
       }
     },

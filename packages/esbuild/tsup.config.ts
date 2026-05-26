@@ -22,6 +22,9 @@ export default defineConfig({
     '@angular/cli',
     '@angular-mf/core',
     'esbuild',
-    'vite'
+    'vite',
+    '@babel/core',
+    '@angular/compiler-cli',
+    '@angular/compiler-cli/linker/babel'
   ]
 });

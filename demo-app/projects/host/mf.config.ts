@@ -7,5 +7,6 @@ export default withModuleFederation({
   },
   shared: (defaults) => ({
     ...defaults,
+    "@angular/common/http": { singleton: true },
   }),
 });

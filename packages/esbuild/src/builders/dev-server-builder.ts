@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import type { BuilderContext } from '@angular-devkit/architect';
 import { createBuilder } from '@angular-devkit/architect';
 import type { MfBuilderOptions, EsbuildMfPluginOptions, ViteMfPluginOptions, ModuleFederationConfig } from '@angular-mf/core/types';
@@ -10,7 +10,6 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 
 async function setupDevServer(options: MfBuilderOptions, context: BuilderContext) {
-  const { join, dirname } = await import('node:path');
   const mfConfigRelPath = options.mfConfig ?? 'mf.config.ts';
   const configPath = join(context.workspaceRoot, mfConfigRelPath);
 
@@ -32,7 +31,10 @@ async function setupDevServer(options: MfBuilderOptions, context: BuilderContext
     writeFileSync(tmpFile, code);
     
     try {
-      const configModule = await import(new URL(`file://${tmpFile}`).href);
+      // Cache-busting: add timestamp so watch-mode rebuilds get fresh config.
+      const importUrl = new URL(`file://${tmpFile}`);
+      importUrl.searchParams.set('t', Date.now().toString());
+      const configModule = await import(importUrl.href);
       rawConfig = configModule.default || configModule;
     } finally {
       try { unlinkSync(tmpFile); } catch {}
@@ -93,9 +95,6 @@ async function setupDevServer(options: MfBuilderOptions, context: BuilderContext
     middleware: [
       (req: any, res: any, next: any) => {
         const url = req.url?.split('?')[0];
-        if (url.includes('vite/deps') || url.includes('mf-shared')) {
-          console.log('[MF Middleware] Request URL:', url);
-        }
         const filename = config.filename ?? 'remoteEntry.js';
         if (url === `/${filename}` || url === filename) {
           generateRemoteEntry(config, buildOutputsMap)
@@ -161,17 +160,30 @@ async function setupDevServer(options: MfBuilderOptions, context: BuilderContext
 
           const pkgMatch = url.split('vite/deps/')[1]?.split('.js')[0];
           if (pkgMatch) {
-            let pkgName = pkgMatch.replace('_', '/');
+            // FIX: Vite encodes package names as:
+            //   @angular/core   → _angular_core  (@ → _, / → _)
+            //   rxjs/operators  → rxjs_operators  (/ → _)
+            // String.replace('_', '/') only replaces the FIRST underscore,
+            // which was wrong for scoped packages. Use regex replace instead.
+            let pkgName: string;
+            if (pkgMatch.startsWith('_')) {
+              // Scoped package: first _ was @ sign, rest _ are /
+              pkgName = '@' + pkgMatch.slice(1).replace(/_/g, '/');
+            } else {
+              pkgName = pkgMatch.replace(/_/g, '/');
+            }
             const sharedKeys = Object.keys(config.shared ?? {});
             
             // Only proxy if it's in our shared config
             if (sharedKeys.includes(pkgName)) {
-              console.log('[MF Middleware] Proxying Vite dep:', pkgName);
-              
+              // FIX: Use a differently named variable to avoid shadowing the
+              // outer HTTP 'req' object. 'createRequire' returns a Node module
+              // resolver — it has no .url property. Shadowing 'req' caused
+              // req.url to be undefined, producing broken import URLs.
               let pkgVersion = '*';
               try {
-                const req = createRequire(import.meta.url);
-                const pkgJsonPath = req.resolve(`${pkgName}/package.json`, { paths: [context.workspaceRoot] });
+                const pkgResolve = createRequire(context.workspaceRoot + '/package.json');
+                const pkgJsonPath = pkgResolve.resolve(`${pkgName}/package.json`);
                 pkgVersion = JSON.parse(readFileSync(pkgJsonPath, 'utf8')).version;
               } catch (e) {
                 console.warn(`[MF] Could not resolve version for ${pkgName}, defaulting to "*"`);
@@ -179,14 +191,25 @@ async function setupDevServer(options: MfBuilderOptions, context: BuilderContext
 
               import(pkgName).then(pkg => {
                 const keys = Object.keys(pkg).filter(k => k !== 'default');
-                let js = `let shared;\n`;
-                js += `globalThis.__MF_SHARED__ = globalThis.__MF_SHARED__ || {};\n`;
-                js += `if (globalThis.__MF_SHARED__['${pkgName}']) {\n`;
-                js += `  shared = await globalThis.__MF_SHARED__['${pkgName}'].get();\n`;
-                js += `} else {\n`;
-                js += `  shared = await import('${req.url}${req.url?.includes('?') ? '&' : '?'}real=1');\n`;
-                js += `  globalThis.__MF_SHARED__['${pkgName}'] = { version: '${pkgVersion}', get: async () => shared };\n`;
-                js += `}\n`;
+                // Generate a module that checks __MF_SHARED__ first (host's singleton),
+                // then falls back to loading the real Vite-served file.
+                const realUrl = req.url + (req.url?.includes('?') ? '&' : '?') + 'real=1';
+                let js = `let shared;
+`;
+                js += `globalThis.__MF_SHARED__ = globalThis.__MF_SHARED__ || {};
+`;
+                js += `if (globalThis.__MF_SHARED__['${pkgName}']) {
+`;
+                js += `  shared = await globalThis.__MF_SHARED__['${pkgName}'].factory();
+`;
+                js += `} else {
+`;
+                js += `  shared = await import('${realUrl}');
+`;
+                js += `  globalThis.__MF_SHARED__['${pkgName}'] = { version: '${pkgVersion}', singleton: true, factory: async () => shared };
+`;
+                js += `}
+`;
                 
                 if (keys.length > 0) {
                   js += keys.map(k => `export const ${k} = shared.${k};`).join('\n');

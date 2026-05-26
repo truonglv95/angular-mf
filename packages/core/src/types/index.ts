@@ -432,6 +432,7 @@ declare global {
     {
       version: SemverString | string;
       singleton: boolean;
+      /** Winning factory after version negotiation — returns the shared module instance. */
       factory: () => Promise<unknown>;
     }
   > | undefined;

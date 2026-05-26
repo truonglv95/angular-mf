@@ -16,8 +16,8 @@
  * Requirements: 1.1, 1.3, 1.5
  */
 
-import { join } from 'node:path';
-import { join as joinPath, resolve } from 'node:path';
+import { createBuilder } from '@angular-devkit/architect';
+import { join, join as joinPath, resolve } from 'node:path';
 import type { MfBuilderOptions, EsbuildMfPluginOptions, ModuleFederationConfig, SharedConfig } from '@angular-mf/core/types';
 import { createEsbuildMfPlugin, getPendingRemoteEntryJs } from '@angular-mf/core/plugins';
 import { withModuleFederation } from '@angular-mf/core/config';
@@ -111,6 +111,7 @@ async function buildSharedDeps(
 ): Promise<Map<string, string>> {
   const esbuild = await import('esbuild');
   const { mkdirSync, writeFileSync } = await import('node:fs');
+  const { createAngularLinkerPlugin } = await import('./angular-linker-plugin.js');
 
   const sharedDir = joinPath(outputPath, 'shared');
   mkdirSync(sharedDir, { recursive: true });
@@ -122,6 +123,13 @@ async function buildSharedDeps(
 
     const safeFile = `${pkgToFilename(pkgName)}.js`;
     const outFile  = joinPath(sharedDir, safeFile);
+    
+    // Externalize ALL other shared dependencies so that e.g. @angular/common 
+    // does not bundle its own copy of @angular/core!
+    // Include the wildcard '/*' to externalize deep imports (e.g. @angular/core/primitives/*)
+    const externalDeps = Object.keys(shared)
+      .filter(k => k !== pkgName)
+      .flatMap(k => [k, `${k}/*`]);
 
     try {
       const result = await esbuild.build({
@@ -129,14 +137,38 @@ async function buildSharedDeps(
         bundle: true,
         format: 'esm',
         write: false,
-        minify: true,
+        external: externalDeps,
+        // CRITICAL: Do NOT use `minify: true` here.
+        //
+        // esbuild's minifier tree-shakes away all exports when bundling a
+        // package as a library (no downstream consumer in the same build).
+        // This produces a silent ESM file with no `export {}` statement,
+        // causing `import { Component } from '@angular/core'` to resolve
+        // `undefined` even though the importmap correctly loads the file.
+        //
+        // Solution: use `treeShaking: false` to preserve all named exports,
+        // combined with `minifySyntax` + `minifyWhitespace` for size reduction
+        // without touching identifiers (which must remain stable for the
+        // importmap consumer to resolve named exports correctly).
+        treeShaking: false,
+        minifySyntax: true,
+        minifyWhitespace: true,
+        // minifyIdentifiers must stay FALSE — renaming exports would break
+        // `import { Component } from '@angular/core'` since the consumer
+        // uses the original exported name.
+        minifyIdentifiers: false,
         absWorkingDir: workspaceRoot,
-        // Don't externalize peer deps of shared libs — bundle them fully so
-        // each shared file is self-contained.
+        metafile: true,
+        plugins: [createAngularLinkerPlugin()],
       });
       writeFileSync(outFile, result.outputFiles[0].text, 'utf8');
       pkgToUrl.set(pkgName, `./shared/${safeFile}`);
-      logger.info(`[MF] Built shared: ${pkgName} → shared/${safeFile}`);
+
+      // Verify the output actually has exports (sanity check)
+      const exportCount = result.metafile?.outputs
+        ? Object.values(result.metafile.outputs)[0]?.exports?.length ?? 0
+        : 0;
+      logger.info(`[MF] Built shared: ${pkgName} → shared/${safeFile} (${exportCount} exports)`);
     } catch (e) {
       logger.warn(`[MF] Could not build shared dep "${pkgName}": ${e}`);
     }
@@ -305,7 +337,11 @@ export async function* buildWithModuleFederation(
     writeFileSync(tmpFile, code);
     
     try {
-      const configModule = await import(new URL(`file://${tmpFile}`).href);
+      // Cache-busting: Node.js ESM caches import() by URL. Add a timestamp so
+      // that watch-mode rebuilds always get a fresh config read.
+      const importUrl = new URL(`file://${tmpFile}`);
+      importUrl.searchParams.set('t', Date.now().toString());
+      const configModule = await import(importUrl.href);
       rawConfig = configModule.default || configModule;
     } finally {
       try { unlinkSync(tmpFile); } catch {}
@@ -445,14 +481,12 @@ export async function* buildWithModuleFederation(
       }
 
       // ── Host: generate mf-manifest.json ──────────────────────────────────
+      // Format matches RemoteManifest type: Record<string, { remoteEntry: string }>
       if (isHost && config.remotes && Object.keys(config.remotes).length > 0) {
-        const manifest: Record<string, string> = {};
+        const manifest: Record<string, { remoteEntry: string }> = {};
         for (const [remoteName, remoteConfig] of Object.entries(config.remotes)) {
-          if (typeof remoteConfig === 'string') {
-            manifest[remoteName] = remoteConfig;
-          } else {
-            manifest[remoteName] = remoteConfig.url;
-          }
+          const url = typeof remoteConfig === 'string' ? remoteConfig : remoteConfig.url;
+          manifest[remoteName] = { remoteEntry: url };
         }
         const { writeFileSync, mkdirSync } = await import('node:fs');
         const assetsDir = joinPath(outputPath, 'assets');
@@ -470,7 +504,4 @@ export async function* buildWithModuleFederation(
   }
 }
 
-import { createBuilder } from '@angular-devkit/architect';
-
 export default createBuilder(buildWithModuleFederation as any);
-
